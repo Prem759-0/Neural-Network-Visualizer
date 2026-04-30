@@ -1,1 +1,1225 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Network Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050810;
+    --surface: #0d1117;
+    --surface2: #161b27;
+    --border: #1e2a3a;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #f59e0b;
+    --fire: #ff4d6d;
+    --green: #00f5a0;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --glow: 0 0 20px rgba(0, 212, 255, 0.4);
+    --glow2: 0 0 20px rgba(124, 58, 237, 0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── ANIMATED BACKGROUND ── */
+  .bg-grid {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .bg-glow {
+    position: fixed;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+    animation: floatGlow 8s ease-in-out infinite alternate;
+  }
+  .bg-glow.g1 { background: rgba(0,212,255,0.06); top: -200px; left: -200px; }
+  .bg-glow.g2 { background: rgba(124,58,237,0.06); bottom: -200px; right: -200px; animation-delay: -4s; }
+
+  @keyframes floatGlow {
+    from { transform: translate(0,0) scale(1); }
+    to   { transform: translate(60px,40px) scale(1.1); }
+  }
+
+  /* ── LAYOUT ── */
+  .app { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ── HEADER ── */
+  header {
+    padding: 24px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+    background: rgba(5,8,16,0.8);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text { font-size: 18px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+
+  .header-badges { display: flex; gap: 8px; }
+  .badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    border: 1px solid;
+  }
+  .badge.live { border-color: var(--green); color: var(--green); background: rgba(0,245,160,0.08); }
+  .badge.live::before { content: '● '; animation: blink 1.2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .badge.v { border-color: var(--border); color: var(--muted); }
+
+  /* ── MAIN CONTENT ── */
+  .main { display: grid; grid-template-columns: 280px 1fr 280px; gap: 0; flex: 1; }
+
+  /* ── PANELS ── */
+  .panel {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px;
+    overflow-y: auto;
+    max-height: calc(100vh - 73px);
+    position: sticky; top: 73px;
+  }
+  .panel.right { border-right: none; border-left: 1px solid var(--border); }
+
+  .panel-title {
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── ARCHITECTURE BUILDER ── */
+  .layer-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+
+  .layer-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .layer-item::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .layer-item:hover::before, .layer-item.selected::before { opacity: 1; }
+  .layer-item:hover { border-color: var(--accent); background: rgba(0,212,255,0.05); }
+
+  .layer-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .layer-info { flex: 1; min-width: 0; }
+  .layer-name { font-size: 13px; font-weight: 600; }
+  .layer-nodes { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
+  .layer-del {
+    width: 22px; height: 22px; border-radius: 5px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all 0.15s; flex-shrink: 0;
+  }
+  .layer-del:hover { border-color: var(--fire); color: var(--fire); background: rgba(255,77,109,0.1); }
+
+  .add-layer-btn {
+    width: 100%; padding: 10px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .add-layer-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.05); }
+
+  /* ── CONTROLS ── */
+  .control-group { margin-bottom: 20px; }
+  .control-label {
+    font-size: 11px; font-family: 'Space Mono', monospace;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .control-label span { color: var(--accent); font-size: 12px; }
+
+  input[type="range"] {
+    width: 100%; height: 4px; appearance: none;
+    background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(0,212,255,0.6);
+    cursor: pointer; transition: transform 0.15s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .select-group { display: flex; flex-wrap: wrap; gap: 6px; }
+  .select-btn {
+    padding: 6px 12px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px; cursor: pointer; transition: all 0.15s;
+  }
+  .select-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.1); }
+  .select-btn:hover:not(.active) { border-color: var(--border); color: var(--text); }
+
+  /* ── ACTION BUTTONS ── */
+  .action-btn {
+    width: 100%; padding: 12px;
+    border-radius: 10px; border: none;
+    font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.5px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    box-shadow: 0 4px 20px rgba(0,212,255,0.25);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(0,212,255,0.4); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary.running {
+    background: linear-gradient(135deg, var(--fire), #ff8c42);
+    box-shadow: 0 4px 20px rgba(255,77,109,0.25);
+  }
+
+  .btn-secondary {
+    background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── CANVAS AREA ── */
+  .canvas-area {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px 20px;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center, rgba(0,212,255,0.02) 0%, transparent 70%);
+  }
+
+  #nn-canvas {
+    border-radius: 16px;
+    max-width: 100%;
+  }
+
+  /* ── EPOCH BAR ── */
+  .epoch-bar {
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    padding: 10px 24px;
+    display: flex; align-items: center; gap: 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    white-space: nowrap;
+    backdrop-filter: blur(10px);
+  }
+  .epoch-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .epoch-stat-label { font-size: 10px; color: var(--muted); }
+  .epoch-stat-val { color: var(--accent); font-weight: 700; font-size: 14px; }
+  .epoch-sep { width: 1px; height: 28px; background: var(--border); }
+
+  /* ── RIGHT PANEL: METRICS ── */
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 10px;
+    transition: border-color 0.3s;
+  }
+  .metric-card:hover { border-color: rgba(0,212,255,0.3); }
+  .metric-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .metric-name { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; text-transform: uppercase; }
+  .metric-value { font-size: 22px; font-weight: 800; letter-spacing: -1px; }
+  .metric-value.loss { color: var(--fire); }
+  .metric-value.acc  { color: var(--green); }
+  .metric-value.lr   { color: var(--accent3); }
+  .metric-value.ep   { color: var(--accent); }
+
+  .mini-chart { width: 100%; height: 40px; }
+
+  /* ── ACTIVATION LEGEND ── */
+  .activation-grid { display: flex; flex-direction: column; gap: 6px; }
+  .act-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 8px;
+    border: 1px solid transparent; transition: all 0.15s;
+  }
+  .act-item:hover { background: var(--surface2); border-color: var(--border); }
+  .act-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .act-name { font-size: 12px; font-weight: 600; flex: 1; }
+  .act-formula { font-size: 10px; color: var(--muted); font-family: 'Space Mono', monospace; }
+
+  /* ── WEIGHT HISTOGRAM ── */
+  .hist-canvas { width: 100%; height: 60px; border-radius: 6px; overflow: hidden; }
+
+  /* ── SCROLLBAR STYLE ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── TOOLTIP ── */
+  .tooltip {
+    position: fixed; pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    opacity: 0; transition: opacity 0.15s;
+    z-index: 999;
+    line-height: 1.6;
+    box-shadow: var(--glow);
+  }
+  .tooltip.visible { opacity: 1; }
+
+  /* ── NOTIFICATION ── */
+  .notif {
+    position: fixed; top: 90px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--green);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--green);
+    font-family: 'Space Mono', monospace;
+    z-index: 999;
+    transform: translateX(120%);
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 4px 20px rgba(0,245,160,0.2);
+  }
+  .notif.show { transform: translateX(0); }
+
+  /* ── PROGRESS BAR ── */
+  .training-progress {
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--border); overflow: hidden;
+  }
+  .training-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: 0%; transition: width 0.1s linear;
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  /* ── PRESET CHIPS ── */
+  .preset-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .preset-chip {
+    padding: 5px 10px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--muted);
+    font-size: 11px; cursor: pointer;
+    font-family: 'Space Mono', monospace;
+    transition: all 0.15s;
+  }
+  .preset-chip:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(124,58,237,0.1); }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow g1"></div>
+<div class="bg-glow g2"></div>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      <div class="logo-text">Neural<span>Viz</span></div>
+    </div>
+    <div class="header-badges">
+      <span class="badge live" id="live-badge">Training</span>
+      <span class="badge v">v2.1.0</span>
+    </div>
+  </header>
+
+  <div class="training-progress"><div class="training-progress-bar" id="prog-bar"></div></div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- LEFT PANEL -->
+    <div class="panel">
+      <div class="panel-title">Architecture</div>
+
+      <div class="panel-title" style="margin-top:0;border:none;padding:0;margin-bottom:10px;font-size:10px;">Presets</div>
+      <div class="preset-chips">
+        <button class="preset-chip" onclick="loadPreset('xor')">XOR</button>
+        <button class="preset-chip" onclick="loadPreset('deep')">Deep Net</button>
+        <button class="preset-chip" onclick="loadPreset('wide')">Wide</button>
+        <button class="preset-chip" onclick="loadPreset('autoenc')">Autoencoder</button>
+      </div>
+
+      <div class="panel-title" style="margin-bottom:10px;font-size:10px;">Layers</div>
+      <div class="layer-list" id="layer-list"></div>
+      <button class="add-layer-btn" onclick="addLayer()">+ Add Hidden Layer</button>
+
+      <div style="height:20px"></div>
+      <div class="panel-title">Training Config</div>
+
+      <div class="control-group">
+        <div class="control-label">Learning Rate <span id="lr-val">0.01</span></div>
+        <input type="range" id="lr-slider" min="1" max="100" value="10" oninput="updateLR(this.value)">
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">Batch Size <span id="bs-val">32</span></div>
+        <input type="range" id="bs-slider" min="1" max="8" value="5" oninput="updateBS(this.value)">
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">Speed <span id="spd-val">Normal</span></div>
+        <input type="range" id="spd-slider" min="1" max="5" value="3" oninput="updateSpeed(this.value)">
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">Activation</div>
+        <div class="select-group" id="act-group">
+          <button class="select-btn active" onclick="setActivation('relu','this')">ReLU</button>
+          <button class="select-btn" onclick="setActivation('tanh','this')">Tanh</button>
+          <button class="select-btn" onclick="setActivation('sigmoid','this')">Sigmoid</button>
+          <button class="select-btn" onclick="setActivation('leaky','this')">Leaky</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">Loss Function</div>
+        <div class="select-group" id="loss-group">
+          <button class="select-btn active" onclick="setLoss('mse','this')">MSE</button>
+          <button class="select-btn" onclick="setLoss('cross','this')">Cross-E</button>
+          <button class="select-btn" onclick="setLoss('huber','this')">Huber</button>
+        </div>
+      </div>
+
+      <div style="height:16px"></div>
+      <button class="action-btn btn-primary" id="train-btn" onclick="toggleTraining()">
+        <span id="train-icon">▶</span> <span id="train-text">Start Training</span>
+      </button>
+      <button class="action-btn btn-secondary" onclick="resetNetwork()">↺ Reset Weights</button>
+      <button class="action-btn btn-secondary" onclick="forwardPass()">⚡ Forward Pass</button>
+    </div>
+
+    <!-- CANVAS AREA -->
+    <div class="canvas-area">
+      <canvas id="nn-canvas"></canvas>
+      <div class="epoch-bar">
+        <div class="epoch-stat">
+          <span class="epoch-stat-label">EPOCH</span>
+          <span class="epoch-stat-val" id="ep-display">0</span>
+        </div>
+        <div class="epoch-sep"></div>
+        <div class="epoch-stat">
+          <span class="epoch-stat-label">LOSS</span>
+          <span class="epoch-stat-val" id="loss-display" style="color:var(--fire)">—</span>
+        </div>
+        <div class="epoch-sep"></div>
+        <div class="epoch-stat">
+          <span class="epoch-stat-label">ACCURACY</span>
+          <span class="epoch-stat-val" id="acc-display" style="color:var(--green)">—</span>
+        </div>
+        <div class="epoch-sep"></div>
+        <div class="epoch-stat">
+          <span class="epoch-stat-label">PARAMS</span>
+          <span class="epoch-stat-val" id="param-display" style="color:var(--accent3)">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="panel right">
+      <div class="panel-title">Live Metrics</div>
+
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-name">Loss</div>
+          <div class="metric-value loss" id="m-loss">—</div>
+        </div>
+        <canvas class="mini-chart" id="chart-loss"></canvas>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-name">Accuracy</div>
+          <div class="metric-value acc" id="m-acc">—</div>
+        </div>
+        <canvas class="mini-chart" id="chart-acc"></canvas>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-name">Grad Norm</div>
+          <div class="metric-value lr" id="m-grad">—</div>
+        </div>
+        <canvas class="mini-chart" id="chart-grad"></canvas>
+      </div>
+
+      <div style="height:10px"></div>
+      <div class="panel-title">Activations</div>
+      <div class="activation-grid" id="act-legend"></div>
+
+      <div style="height:16px"></div>
+      <div class="panel-title">Weight Distribution</div>
+      <canvas id="hist-canvas" style="width:100%;height:70px;border-radius:6px;"></canvas>
+
+      <div style="height:16px"></div>
+      <div class="panel-title">Network Info</div>
+      <div id="net-info" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);line-height:2;"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+<div class="notif" id="notif"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+const state = {
+  layers: [
+    { type: 'input',  nodes: 4, color: '#00d4ff', name: 'Input' },
+    { type: 'hidden', nodes: 8, color: '#7c3aed', name: 'Hidden 1' },
+    { type: 'hidden', nodes: 6, color: '#f59e0b', name: 'Hidden 2' },
+    { type: 'output', nodes: 2, color: '#00f5a0', name: 'Output' },
+  ],
+  weights: [],
+  biases: [],
+  activations: [],
+  gradients: [],
+  training: false,
+  epoch: 0,
+  loss: null,
+  acc: null,
+  lossHistory: [],
+  accHistory: [],
+  gradHistory: [],
+  lr: 0.01,
+  batchSize: 32,
+  speed: 3,
+  activation: 'relu',
+  lossType: 'mse',
+  animFrame: null,
+  pulseTime: 0,
+  forwardPulse: null,
+  selectedLayer: null,
+  trainInterval: null,
+};
+
+const LAYER_COLORS = ['#00d4ff','#7c3aed','#f59e0b','#ff4d6d','#00f5a0','#f472b6','#34d399'];
+
+// ═══════════════════════════════════════════════════════
+// CANVAS SETUP
+// ═══════════════════════════════════════════════════════
+const canvas = document.getElementById('nn-canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const area = canvas.parentElement;
+  const w = area.clientWidth - 40;
+  const h = area.clientHeight - 100;
+  canvas.width  = Math.min(w, 800);
+  canvas.height = Math.max(400, Math.min(h, 600));
+  drawNetwork();
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT WEIGHTS
+// ═══════════════════════════════════════════════════════
+function initWeights() {
+  state.weights = [];
+  state.biases = [];
+  state.activations = [];
+  for (let i = 0; i < state.layers.length - 1; i++) {
+    const rows = state.layers[i+1].nodes;
+    const cols = state.layers[i].nodes;
+    const w = [];
+    for (let r = 0; r < rows; r++) {
+      const row = [];
+      for (let c = 0; c < cols; c++) {
+        row.push((Math.random() * 2 - 1) * Math.sqrt(2 / cols));
+      }
+      w.push(row);
+    }
+    state.weights.push(w);
+    state.biases.push(new Array(rows).fill(0).map(() => (Math.random()-0.5)*0.1));
+  }
+  state.activations = state.layers.map(l => new Array(l.nodes).fill(0).map(() => Math.random()));
+  updateNetInfo();
+  updateHistogram();
+}
+
+// ═══════════════════════════════════════════════════════
+// NETWORK GEOMETRY
+// ═══════════════════════════════════════════════════════
+function getLayerPositions() {
+  const W = canvas.width, H = canvas.height;
+  const pad = 60;
+  const cols = state.layers.length;
+  const positions = [];
+  for (let l = 0; l < cols; l++) {
+    const x = pad + (l / (cols - 1)) * (W - pad * 2);
+    const nodes = [];
+    const n = state.layers[l].nodes;
+    const maxShow = 12;
+    const show = Math.min(n, maxShow);
+    const spacing = Math.min(48, (H - 80) / (show + 1));
+    for (let i = 0; i < show; i++) {
+      const y = H/2 + (i - (show-1)/2) * spacing;
+      nodes.push({ x, y, real: i, hidden: n > maxShow && i === show - 1 });
+    }
+    if (n > maxShow) {
+      nodes[nodes.length-1].hidden = true;
+      nodes[nodes.length-1].hiddenCount = n - maxShow + 1;
+    }
+    positions.push(nodes);
+  }
+  return positions;
+}
+
+// ═══════════════════════════════════════════════════════
+// DRAW NETWORK
+// ═══════════════════════════════════════════════════════
+function drawNetwork() {
+  if (!canvas.width) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const pos = getLayerPositions();
+  const t = state.pulseTime;
+
+  // DRAW CONNECTIONS
+  for (let l = 0; l < pos.length - 1; l++) {
+    const fromNodes = pos[l];
+    const toNodes = pos[l+1];
+    const fromColor = state.layers[l].color;
+    const toColor = state.layers[l+1].color;
+
+    for (let fi = 0; fi < fromNodes.length; fi++) {
+      for (let ti = 0; ti < toNodes.length; ti++) {
+        const from = fromNodes[fi];
+        const to   = toNodes[ti];
+        const wVal = state.weights[l] ? (state.weights[l][ti] ? state.weights[l][ti][fi] : 0) : 0;
+        const absW = Math.abs(wVal);
+
+        // Base connection
+        const alpha = 0.04 + absW * 0.18;
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.lineWidth = 0.5 + absW * 1.5;
+        ctx.strokeStyle = wVal > 0
+          ? `rgba(0,212,255,${alpha})`
+          : `rgba(255,77,109,${alpha})`;
+        ctx.stroke();
+
+        // Pulse animation (forward pass)
+        if (state.forwardPulse !== null && state.forwardPulse === l) {
+          const pulsePos = (t % 1);
+          const px = from.x + (to.x - from.x) * pulsePos;
+          const py = from.y + (to.y - from.y) * pulsePos;
+          ctx.beginPath();
+          ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(0,212,255,${0.7 * (1 - Math.abs(pulsePos - 0.5) * 2)})`;
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  // DRAW NODES
+  for (let l = 0; l < pos.length; l++) {
+    const layer = state.layers[l];
+    const nodes = pos[l];
+    const color = layer.color;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      const act = state.activations[l] ? (state.activations[l][i] || 0) : 0;
+      const r = 14;
+
+      if (n.hidden) {
+        // Ellipsis node
+        ctx.fillStyle = 'rgba(100,116,139,0.5)';
+        for (let d = -1; d <= 1; d++) {
+          ctx.beginPath();
+          ctx.arc(n.x, n.y + d * 7, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = 'var(--muted)';
+        ctx.font = '9px Space Mono';
+        ctx.textAlign = 'center';
+        ctx.fillText(`+${n.hiddenCount}`, n.x, n.y + 20);
+        continue;
+      }
+
+      // Glow
+      const glowSize = r + 8 + act * 12;
+      const grd = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, glowSize);
+      grd.addColorStop(0, color + '44');
+      grd.addColorStop(1, color + '00');
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, glowSize, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+
+      // Node circle
+      const nodeGrd = ctx.createRadialGradient(n.x - r*0.3, n.y - r*0.3, 2, n.x, n.y, r);
+      nodeGrd.addColorStop(0, lightenColor(color, 40));
+      nodeGrd.addColorStop(1, color);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = nodeGrd;
+      ctx.fill();
+
+      // Activation ring
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, -Math.PI/2, -Math.PI/2 + act * Math.PI * 2);
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Border
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = color + 'aa';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Label for first/last
+      if (l === 0 || l === state.layers.length - 1) {
+        ctx.font = '9px Space Mono';
+        ctx.fillStyle = color + 'cc';
+        ctx.textAlign = l === 0 ? 'right' : 'left';
+        const lx = l === 0 ? n.x - r - 5 : n.x + r + 5;
+        ctx.fillText((act * 100).toFixed(0) + '%', lx, n.y + 3);
+      }
+    }
+  }
+
+  // LAYER LABELS
+  for (let l = 0; l < pos.length; l++) {
+    const layer = state.layers[l];
+    const x = pos[l][0].x;
+    const topY = Math.min(...pos[l].map(n => n.y)) - 30;
+    ctx.font = 'bold 11px Syne';
+    ctx.fillStyle = layer.color + 'cc';
+    ctx.textAlign = 'center';
+    ctx.fillText(layer.name.toUpperCase(), x, topY);
+    ctx.font = '10px Space Mono';
+    ctx.fillStyle = 'rgba(100,116,139,0.8)';
+    ctx.fillText(layer.nodes + ' units', x, topY + 14);
+  }
+}
+
+function lightenColor(hex, amount) {
+  const num = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, (num >> 16) + amount);
+  const g = Math.min(255, ((num >> 8) & 0xff) + amount);
+  const b = Math.min(255, (num & 0xff) + amount);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ═══════════════════════════════════════════════════════
+// ANIMATION LOOP
+// ═══════════════════════════════════════════════════════
+let lastTime = 0;
+function animate(time) {
+  const dt = (time - lastTime) / 1000;
+  lastTime = time;
+
+  if (state.training || state.forwardPulse !== null) {
+    state.pulseTime += dt * 1.5;
+    if (state.pulseTime > 1) {
+      state.pulseTime = 0;
+      if (state.forwardPulse !== null) {
+        state.forwardPulse++;
+        if (state.forwardPulse >= state.layers.length - 1) {
+          state.forwardPulse = null;
+          randomizeActivations();
+        }
+      }
+    }
+  }
+
+  // Subtle activation drift when training
+  if (state.training) {
+    for (let l = 0; l < state.activations.length; l++) {
+      for (let i = 0; i < state.activations[l].length; i++) {
+        state.activations[l][i] += (Math.random() - 0.5) * 0.05;
+        state.activations[l][i] = Math.max(0, Math.min(1, state.activations[l][i]));
+      }
+    }
+  }
+
+  drawNetwork();
+  state.animFrame = requestAnimationFrame(animate);
+}
+
+// ═══════════════════════════════════════════════════════
+// TRAINING SIMULATION
+// ═══════════════════════════════════════════════════════
+const SPEED_MAP = [50, 30, 20, 10, 5]; // ms per tick
+
+function toggleTraining() {
+  state.training = !state.training;
+  const btn = document.getElementById('train-btn');
+  const icon = document.getElementById('train-icon');
+  const text = document.getElementById('train-text');
+  const badge = document.getElementById('live-badge');
+
+  if (state.training) {
+    btn.classList.add('running');
+    icon.textContent = '⏸';
+    text.textContent = 'Pause Training';
+    badge.textContent = '● Training';
+    startTrainingTick();
+  } else {
+    btn.classList.remove('running');
+    icon.textContent = '▶';
+    text.textContent = 'Resume Training';
+    badge.textContent = 'Paused';
+    clearInterval(state.trainInterval);
+  }
+}
+
+function startTrainingTick() {
+  clearInterval(state.trainInterval);
+  const ms = SPEED_MAP[state.speed - 1] || 20;
+  state.trainInterval = setInterval(trainingStep, ms);
+}
+
+function trainingStep() {
+  state.epoch++;
+
+  // Simulate loss curve (decaying with noise)
+  const baseLoss = 1.2 * Math.exp(-state.epoch * 0.008) + 0.05;
+  state.loss = baseLoss + (Math.random() - 0.5) * 0.04;
+  state.acc  = Math.min(0.99, 1 - state.loss * 0.7 + (Math.random()-0.5)*0.02);
+  const grad = 0.4 * Math.exp(-state.epoch * 0.006) + (Math.random() * 0.1);
+
+  state.lossHistory.push(state.loss);
+  state.accHistory.push(state.acc);
+  state.gradHistory.push(grad);
+  if (state.lossHistory.length > 60) {
+    state.lossHistory.shift(); state.accHistory.shift(); state.gradHistory.shift();
+  }
+
+  // Perturb weights slightly
+  for (let l = 0; l < state.weights.length; l++) {
+    for (let r = 0; r < state.weights[l].length; r++) {
+      for (let c = 0; c < state.weights[l][r].length; c++) {
+        state.weights[l][r][c] += (Math.random()-0.5) * state.lr * 0.5;
+      }
+    }
+  }
+
+  // Update UI
+  document.getElementById('ep-display').textContent   = state.epoch;
+  document.getElementById('loss-display').textContent = state.loss.toFixed(4);
+  document.getElementById('acc-display').textContent  = (state.acc * 100).toFixed(1) + '%';
+  document.getElementById('m-loss').textContent = state.loss.toFixed(4);
+  document.getElementById('m-acc').textContent  = (state.acc * 100).toFixed(1) + '%';
+  document.getElementById('m-grad').textContent = grad.toFixed(4);
+
+  const totalEpochs = 200;
+  document.getElementById('prog-bar').style.width = Math.min(100, state.epoch / totalEpochs * 100) + '%';
+
+  drawMiniChart('chart-loss', state.lossHistory, '#ff4d6d');
+  drawMiniChart('chart-acc',  state.accHistory,  '#00f5a0');
+  drawMiniChart('chart-grad', state.gradHistory,  '#f59e0b');
+  updateHistogram();
+
+  if (state.epoch % 50 === 0) {
+    showNotif(`Epoch ${state.epoch} — Loss: ${state.loss.toFixed(4)}`);
+  }
+  if (state.epoch >= totalEpochs) {
+    toggleTraining();
+    showNotif('✓ Training complete!');
+  }
+}
+
+function forwardPass() {
+  randomizeActivations();
+  state.forwardPulse = 0;
+  state.pulseTime = 0;
+  showNotif('⚡ Forward pass started');
+}
+
+function randomizeActivations() {
+  state.activations = state.layers.map(l =>
+    new Array(l.nodes).fill(0).map(() => Math.max(0, Math.random()))
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// MINI CHARTS
+// ═══════════════════════════════════════════════════════
+function drawMiniChart(id, data, color) {
+  const c = document.getElementById(id);
+  if (!c) return;
+  const w = c.offsetWidth || 232; const h = 40;
+  c.width = w; c.height = h;
+  const cx = c.getContext('2d');
+
+  if (data.length < 2) return;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+
+  // Fill
+  const grad = cx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, color + '44');
+  grad.addColorStop(1, color + '00');
+  cx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((data[i] - min) / range) * (h - 4) - 2;
+    i === 0 ? cx.moveTo(x, y) : cx.lineTo(x, y);
+  }
+  cx.lineTo(w, h); cx.lineTo(0, h);
+  cx.closePath();
+  cx.fillStyle = grad; cx.fill();
+
+  // Line
+  cx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((data[i] - min) / range) * (h - 4) - 2;
+    i === 0 ? cx.moveTo(x, y) : cx.lineTo(x, y);
+  }
+  cx.strokeStyle = color; cx.lineWidth = 1.5; cx.stroke();
+
+  // Dot at end
+  const lx = w, ly = h - ((data[data.length-1] - min) / range) * (h-4) - 2;
+  cx.beginPath(); cx.arc(lx - 2, ly, 3, 0, Math.PI*2);
+  cx.fillStyle = color; cx.fill();
+}
+
+// ═══════════════════════════════════════════════════════
+// HISTOGRAM
+// ═══════════════════════════════════════════════════════
+function updateHistogram() {
+  const c = document.getElementById('hist-canvas');
+  if (!c) return;
+  const w = c.offsetWidth || 232; const h = 70;
+  c.width = w; c.height = h;
+  const cx = c.getContext('2d');
+
+  const allWeights = [];
+  for (const layer of state.weights) {
+    for (const row of layer) for (const v of row) allWeights.push(v);
+  }
+  if (!allWeights.length) return;
+
+  const bins = 20;
+  const min = Math.min(...allWeights), max = Math.max(...allWeights);
+  const binW = (max - min) / bins;
+  const counts = new Array(bins).fill(0);
+  for (const v of allWeights) {
+    const b = Math.min(bins - 1, Math.floor((v - min) / binW));
+    counts[b]++;
+  }
+  const maxC = Math.max(...counts);
+  const bw = w / bins;
+
+  cx.clearRect(0, 0, w, h);
+  for (let i = 0; i < bins; i++) {
+    const bh = (counts[i] / maxC) * (h - 6);
+    const center = (i / bins) + 0.5/bins;
+    const col = center < 0.5
+      ? `rgba(255,77,109,${0.4 + center})`
+      : `rgba(0,212,255,${0.4 + (1-center)})`;
+    cx.fillStyle = col;
+    cx.fillRect(i * bw + 1, h - bh - 3, bw - 2, bh);
+  }
+
+  // Zero line
+  const zeroX = ((0 - min) / (max - min)) * w;
+  cx.strokeStyle = 'rgba(255,255,255,0.2)';
+  cx.lineWidth = 1;
+  cx.beginPath(); cx.moveTo(zeroX, 0); cx.lineTo(zeroX, h); cx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════
+// LAYER LIST UI
+// ═══════════════════════════════════════════════════════
+function renderLayerList() {
+  const list = document.getElementById('layer-list');
+  list.innerHTML = '';
+  state.layers.forEach((layer, i) => {
+    const div = document.createElement('div');
+    div.className = 'layer-item' + (state.selectedLayer === i ? ' selected' : '');
+    div.innerHTML = `
+      <div class="layer-dot" style="background:${layer.color}"></div>
+      <div class="layer-info">
+        <div class="layer-name">${layer.name}</div>
+        <div class="layer-nodes">${layer.nodes} units · ${layer.type}</div>
+      </div>
+      ${layer.type === 'hidden' ? `<button class="layer-del" onclick="removeLayer(${i},event)" title="Remove">✕</button>` : ''}
+    `;
+    div.onclick = () => selectLayer(i);
+    list.appendChild(div);
+  });
+
+  // Update param count
+  let params = 0;
+  for (let i = 0; i < state.layers.length - 1; i++) {
+    params += state.layers[i].nodes * state.layers[i+1].nodes + state.layers[i+1].nodes;
+  }
+  document.getElementById('param-display').textContent = params.toLocaleString();
+}
+
+function selectLayer(i) {
+  state.selectedLayer = state.selectedLayer === i ? null : i;
+  renderLayerList();
+}
+
+function addLayer() {
+  const insertIdx = state.layers.length - 1;
+  const n = [4, 6, 8, 10, 12][Math.floor(Math.random() * 5)];
+  const color = LAYER_COLORS[insertIdx % LAYER_COLORS.length];
+  state.layers.splice(insertIdx, 0, {
+    type: 'hidden', nodes: n,
+    color, name: `Hidden ${insertIdx}`
+  });
+  initWeights(); renderLayerList(); updateActLegend(); showNotif(`Added hidden layer (${n} units)`);
+}
+
+function removeLayer(i, e) {
+  e.stopPropagation();
+  if (state.layers[i].type !== 'hidden') return;
+  state.layers.splice(i, 1);
+  initWeights(); renderLayerList(); updateActLegend();
+}
+
+// ═══════════════════════════════════════════════════════
+// CONTROLS
+// ═══════════════════════════════════════════════════════
+const BS_MAP = [4,8,16,32,64,128,256,512];
+const SPEED_LABELS = ['Slow','Normal-','Normal','Fast','Turbo'];
+
+function updateLR(v) {
+  state.lr = (v / 1000).toFixed(4);
+  document.getElementById('lr-val').textContent = state.lr;
+}
+function updateBS(v) {
+  state.batchSize = BS_MAP[v-1];
+  document.getElementById('bs-val').textContent = state.batchSize;
+}
+function updateSpeed(v) {
+  state.speed = parseInt(v);
+  document.getElementById('spd-val').textContent = SPEED_LABELS[v-1];
+  if (state.training) startTrainingTick();
+}
+function setActivation(a) {
+  state.activation = a;
+  document.querySelectorAll('#act-group .select-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase().startsWith(a.slice(0,4)));
+  });
+  updateActLegend();
+}
+function setLoss(l) {
+  state.lossType = l;
+  document.querySelectorAll('#loss-group .select-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase().startsWith(l.slice(0,3)));
+  });
+}
+
+function resetNetwork() {
+  state.epoch = 0; state.loss = null; state.acc = null;
+  state.lossHistory = []; state.accHistory = []; state.gradHistory = [];
+  state.forwardPulse = null;
+  document.getElementById('ep-display').textContent   = '0';
+  document.getElementById('loss-display').textContent = '—';
+  document.getElementById('acc-display').textContent  = '—';
+  document.getElementById('m-loss').textContent = '—';
+  document.getElementById('m-acc').textContent  = '—';
+  document.getElementById('m-grad').textContent = '—';
+  document.getElementById('prog-bar').style.width = '0%';
+  initWeights(); randomizeActivations();
+  showNotif('↺ Weights reset (Xavier init)');
+}
+
+// ═══════════════════════════════════════════════════════
+// PRESETS
+// ═══════════════════════════════════════════════════════
+const PRESETS = {
+  xor:      [[4,'Input','#00d4ff'],[4,'Hidden 1','#7c3aed'],[2,'Output','#00f5a0']],
+  deep:     [[3,'Input','#00d4ff'],[16,'H1','#7c3aed'],[12,'H2','#f59e0b'],[8,'H3','#ff4d6d'],[4,'H4','#00f5a0'],[2,'Output','#00d4ff']],
+  wide:     [[6,'Input','#00d4ff'],[32,'Hidden','#7c3aed'],[3,'Output','#00f5a0']],
+  autoenc:  [[8,'Input','#00d4ff'],[6,'Enc 1','#7c3aed'],[3,'Bottleneck','#f59e0b'],[6,'Dec 1','#ff4d6d'],[8,'Output','#00f5a0']],
+};
+
+function loadPreset(key) {
+  const p = PRESETS[key];
+  state.layers = p.map((d, i) => ({
+    nodes: d[0], name: d[1], color: d[2],
+    type: i === 0 ? 'input' : i === p.length-1 ? 'output' : 'hidden'
+  }));
+  resetNetwork(); renderLayerList(); updateActLegend();
+  showNotif(`Loaded preset: ${key}`);
+}
+
+// ═══════════════════════════════════════════════════════
+// ACTIVATION LEGEND
+// ═══════════════════════════════════════════════════════
+const ACT_INFO = {
+  relu:    { color: '#00d4ff',  formula: 'max(0, x)' },
+  tanh:    { color: '#7c3aed', formula: '(eˣ-e⁻ˣ)/(eˣ+e⁻ˣ)' },
+  sigmoid: { color: '#f59e0b', formula: '1/(1+e⁻ˣ)' },
+  leaky:   { color: '#ff4d6d', formula: 'max(0.1x, x)' },
+};
+
+function updateActLegend() {
+  const el = document.getElementById('act-legend');
+  el.innerHTML = Object.entries(ACT_INFO).map(([name, info]) => `
+    <div class="act-item ${state.activation === name ? 'selected' : ''}" onclick="setActivation('${name}')">
+      <div class="act-dot" style="background:${info.color}"></div>
+      <span class="act-name" style="color:${info.color}">${name.toUpperCase()}</span>
+      <span class="act-formula">${info.formula}</span>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// NET INFO
+// ═══════════════════════════════════════════════════════
+function updateNetInfo() {
+  let params = 0, biasP = 0;
+  for (let i = 0; i < state.layers.length - 1; i++) {
+    params += state.layers[i].nodes * state.layers[i+1].nodes;
+    biasP  += state.layers[i+1].nodes;
+  }
+  document.getElementById('net-info').innerHTML = `
+    Depth: ${state.layers.length} layers<br>
+    Weight params: ${params.toLocaleString()}<br>
+    Bias params: ${biasP.toLocaleString()}<br>
+    Total params: ${(params+biasP).toLocaleString()}<br>
+    Optimizer: SGD<br>
+    Init: Xavier/Glorot
+  `;
+}
+
+// ═══════════════════════════════════════════════════════
+// TOOLTIP
+// ═══════════════════════════════════════════════════════
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const pos = getLayerPositions();
+  const tip = document.getElementById('tooltip');
+  let found = false;
+
+  for (let l = 0; l < pos.length && !found; l++) {
+    for (let i = 0; i < pos[l].length; i++) {
+      const n = pos[l][i];
+      if (!n.hidden && Math.hypot(mx - n.x, my - n.y) < 18) {
+        const act = state.activations[l] ? state.activations[l][i] : 0;
+        tip.innerHTML = `Layer: ${state.layers[l].name}<br>Node: #${i+1}<br>Activation: ${(act*100).toFixed(1)}%<br>Type: ${state.layers[l].type}`;
+        tip.style.left = (e.clientX + 14) + 'px';
+        tip.style.top  = (e.clientY - 14) + 'px';
+        tip.classList.add('visible');
+        found = true; break;
+      }
+    }
+  }
+  if (!found) tip.classList.remove('visible');
+});
+canvas.addEventListener('mouseleave', () => document.getElementById('tooltip').classList.remove('visible'));
+
+// ═══════════════════════════════════════════════════════
+// NOTIFICATION
+// ═══════════════════════════════════════════════════════
+let notifTimer;
+function showNotif(msg) {
+  const el = document.getElementById('notif');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('resize', resizeCanvas);
+
+function init() {
+  resizeCanvas();
+  initWeights();
+  renderLayerList();
+  updateActLegend();
+  updateNetInfo();
+  randomizeActivations();
+  requestAnimationFrame(animate);
+  setTimeout(() => showNotif('Welcome to NeuralViz — click ▶ to train!'), 800);
+}
+
+init();
+</script>
+</body>
+</html>
