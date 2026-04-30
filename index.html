@@ -1,39 +1,6 @@
 
 < ─</div>
-      <div class="layer-list" id="layer-list"></div>
-      <button class="add-layer-btn" onclick="addLayer()">+ Add Hidden Layer</button>
-
-      <div style="height:20px"></div>
-      <div class="panel-title">Training Config</div>
-
-      <div class="control-group">
-        <div class="control-label">Learning Rate <span id="lr-val">0.01</span></div>
-        <input type="range" id="lr-slider" min="1" max="100" value="10" oninput="updateLR(this.value)">
-      </div>
-
-      <div class="control-group">
-        <div class="control-label">Batch Size <span id="bs-val">32</span></div>
-        <input type="range" id="bs-slider" min="1" max="8" value="5" oninput="updateBS(this.value)">
-      </div>
-
-      <div class="control-group">
-        <div class="control-label">Speed <span id="spd-val">Normal</span></div>
-        <input type="range" id="spd-slider" min="1" max="5" value="3" oninput="updateSpeed(this.value)">
-      </div>
-
-      <div class="control-group">
-        <div class="control-label">Activation</div>
-        <div class="select-group" id="act-group">
-          <button class="select-btn active" onclick="setActivation('relu','this')">ReLU</button>
-          <button class="select-btn" onclick="setActivation('tanh','this')">Tanh</button>
-          <button class="select-btn" onclick="setActivation('sigmoid','this')">Sigmoid</button>
-          <button class="select-btn" onclick="setActivation('leaky','this')">Leaky</button>
-        </div>
-      </div>
-
-      <div class="control-group">
-        <div class="control-label">Loss Function</div>
-        <div class="select-group" id="loss-group">
+   l     <div class="select-group" id="loss-group">
           <button class="select-btn active" onclick="setLoss('mse','this')">MSE</button>
           <button class="select-btn" onclick="setLoss('cross','this')">Cross-E</button>
           <button class="select-btn" onclick="setLoss('huber','this')">Huber</button>
